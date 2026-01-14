@@ -1,0 +1,60 @@
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from schemas.like import LikeCreate, LikeResponse, LikeStatus
+from utils import auth, data
+
+router = APIRouter(prefix="/likes", tags=["likes"])
+
+
+@router.post("/", response_model=LikeStatus, status_code=status.HTTP_201_CREATED)
+async def create_like(
+        like_data: LikeCreate,
+        current_user: dict = Depends(auth.get_current_user)
+):
+
+    post = data.find_by_id("posts.json", like_data.post_id)
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="게시글을 찾을 수 없음"
+        )
+
+    likes = data.load_data("likes.json")
+    existing_like = next(
+        (like for like in likes
+         if like["post_id"] == like_data.post_id and like["user_id"] == current_user["id"]),
+        None
+    )
+
+    if existing_like:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 좋아요를 누른 게시글입니다"
+        )
+
+    like_id = data.get_next_id("likes.json")
+    now = datetime.now(timezone.utc).isoformat()
+    new_like = {
+        "id": like_id,
+        "post_id": like_data.post_id,
+        "user_id": current_user["id"],
+        "created_at": now
+    }
+
+    likes.append(new_like)
+    success = data.save_data(likes, "likes.json")
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="좋아요 데이터 저장 실패"
+        )
+
+    new_like_count = post.get("like_count", 0) + 1
+    data.update_by_id("posts.json", like_data.post_id, {"like_count": new_like_count})
+
+    return LikeStatus(
+        is_liked=True,
+        total_likes=new_like_count
+    )
