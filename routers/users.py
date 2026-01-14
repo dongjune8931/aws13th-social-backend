@@ -133,6 +133,11 @@ async def delete_account(current_user: dict = Depends(auth.get_current_user)):
         if comment.get("user_id") == user_id:
             data.delete_by_id("comments.json", comment["id"])
 
+    likes = data.load_data("likes.json")
+    for like in likes:
+        if like.get("user_id") == user_id:
+            data.delete_by_id("likes.json", like["id"])
+
     posts = data.load_data("posts.json")
     for post in posts:
         if post.get("user_id") == user_id:
@@ -140,6 +145,10 @@ async def delete_account(current_user: dict = Depends(auth.get_current_user)):
             for comment in post_comments:
                 if comment.get("post_id") == post["id"]:
                     data.delete_by_id("comments.json", comment["id"])
+            post_likes = data.load_data("likes.json")
+            for like in post_likes:
+                if like.get("post_id") == post["id"]:
+                    data.delete_by_id("likes.json", like["id"])
             data.delete_by_id("posts.json", post["id"])
 
     data.delete_by_id("users.json", user_id)
