@@ -102,3 +102,31 @@ async def get_detail_post(post_id: int):
         created_at=detailed_post["created_at"],
         updated_at=detailed_post["updated_at"]
     )
+
+@router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_post(
+        post_id: int,
+        current_user: dict = Depends(auth.get_current_user)
+):
+    post = data.find_by_id("posts.json", post_id)
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="게시글을 찾을 수 없음"
+        )
+
+    if post["user_id"] != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="작성자만 삭제할 수 있습니다"
+        )
+
+    comments = data.load_data("comments.json")
+    for comment in comments:
+        if comment.get("post_id") == post_id:
+            data.delete_by_id("comments.json", comment["id"])
+
+    # 게시글 삭제
+    data.delete_by_id("posts.json", post_id)
+
+
